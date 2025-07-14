@@ -6,7 +6,7 @@ jQuery(function($) {
 		const id = 'basic_barcode';
 		const plugin = basic_barcode;
 		const fields = [
-			'bpdf_active'
+			'active'
 		];
 		const editors = [
 		];

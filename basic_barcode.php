@@ -31,7 +31,7 @@ define('_PATH_BASIC_BARCODE', plugin_dir_path(__FILE__));
 // basic_barcode args
 
 define('_ARGS_BASIC_BARCODE', [
-	'bbc_active' => [
+	'active' => [
 		'type' => 'string',
 		'default' => 'no'
 	]
@@ -44,7 +44,7 @@ define('_ADMIN_BASIC_BARCODE', [
 		'label' => 'Options',
 		'columns' => 4,
 		'fields' => [
-			'bbc_active' => [
+			'active' => [
 				'label' => 'Plugin Active',
 				'type' => 'check'
 			]
@@ -54,22 +54,27 @@ define('_ADMIN_BASIC_BARCODE', [
 
 // basic_barcode api routes
 
-define('_APIPATH_BASIC_BARCODE',
-	'settings'
-);
-
 define('_API_BASIC_BARCODE', [
 	[
+		'path' => 'settings',
 		'methods' => 'POST',
 		'callback' => 'update_settings',
 		'args' => _bbcSettings::args(),
 		'permission_callback' => 'permissions'
 	],
 	[
+		'path' => 'settings',
 		'methods' => 'GET',
 		'callback' => 'get_settings',
 		'args' => [],
 		'permission_callback' => 'permissions'
+	],
+	[
+		'path' => 'generate',
+		'methods' => 'GET',
+		'callback' => 'generate',
+		'args' => [],
+		'permission_callback' => 'open_access'
 	]
 ]);
 
@@ -85,9 +90,8 @@ define('_API_BASIC_BARCODE', [
 class _bbcAPI {
 	public function add_routes() {
 		if (count(_API_BASIC_BARCODE)) {
-
 			foreach(_API_BASIC_BARCODE as $route) {
-				register_rest_route(_PLUGIN_BASIC_BARCODE . '-api', '/' . _APIPATH_BASIC_BARCODE, [
+				register_rest_route(_PLUGIN_BASIC_BARCODE . '-api', '/' . $route['path'], [
 					'methods' => $route['methods'],
 					'callback' => [$this, $route['callback']],
 					'args' => $route['args'],
@@ -101,6 +105,10 @@ class _bbcAPI {
 		return current_user_can('manage_options');
 	}
 
+	public function open_access() {
+		return true;
+	}
+
 	public function update_settings(WP_REST_Request $request) {
 		$settings = [];
 		foreach (_bbcSettings::args() as $key => $val) {
@@ -112,6 +120,53 @@ class _bbcAPI {
 
 	public function get_settings(WP_REST_Request $request) {
 		return rest_ensure_response(_bbcSettings::get_settings());
+	}
+
+	public function generate(WP_REST_Request $request) {
+		$key = $request->get_param('key');
+		$type = $request->get_param('type') ?? 'QRCODE';
+		$format = $request->get_param('format') ?? 'svg';
+		$value = $request->get_param('value');
+		$width = $request->get_param('width') ?? 256;
+		$height = $request->get_param('height') ?? 256;
+
+		if (_BBC['active'] != 'yes') {
+			return rest_ensure_response(['error' => 'api disabled']);
+		}
+
+		if ($key == '') {
+			return rest_ensure_response(['error' => 'missing key']);
+		}
+
+		if ($key !== 'test_key') {
+			return rest_ensure_response(['error' => 'invalid key']);
+		}
+
+		if ($value == '') {
+			return rest_ensure_response(['error' => 'missing value']);
+		}		
+
+		require_once(_PATH_BASIC_BARCODE . '/lib/barcode.php');
+
+		$barcode = new Barcode();
+		$obj = $barcode->getBarcodeObj($type, $value, $width, $height, 'black', [0, 0, 0, 0])->setBackgroundColor('white');
+
+		switch ($format) {
+			case 'svg': {
+				header('Content-Type: image/svg+xml');
+				header('Cache-Control: no-cache');
+				echo $obj->getSvgCode();
+
+				exit;
+			}
+			case 'png': {
+				header('Content-Type: image/png');
+				header('Cache-Control: no-cache');
+				echo $obj->getPng();
+
+				exit;
+			}
+		}
 	}
 }
 
@@ -336,107 +391,6 @@ class _bbcMenu {
 	}
 }
 
-// menu stuff
-
-function bbc_set_current_menu($parent_file) {
-	global $submenu_file, $current_screen, $pagenow;
-
-	if (in_array($current_screen->id, ['edit-svg', 'svg'])) {
-		if ($pagenow == 'post.php') {
-			$submenu_file = 'edit.php?post_type=' . $current_screen->post_type;
-		}
-		$parent_file = _PLUGIN_BASIC_BARCODE . '-menu';
-	}
-	return $parent_file;
-}
-
-//   ▄█   ███▄▄▄▄▄     ▄█       ███      
-//  ███   ███▀▀▀▀██▄  ███   ▀█████████▄  
-//  ███▌  ███    ███  ███▌     ▀███▀▀██  
-//  ███▌  ███    ███  ███▌      ███   ▀  
-//  ███▌  ███    ███  ███▌      ███      
-//  ███   ███    ███  ███       ███      
-//  ███   ███    ███  ███       ███      
-//  █▀     ▀█    █▀   █▀       ▄████▀
-
-function bbc_init($dir) {
-	// do something
-}
-
-
-//     ▄████████      ███      ▄██   ▄     ▄█           ▄████████  
-//    ███    ███  ▀█████████▄  ███   ██▄  ███          ███    ███  
-//    ███    █▀      ▀███▀▀██  ███▄▄▄███  ███          ███    █▀   
-//    ███             ███   ▀  ▀▀▀▀▀▀███  ███         ▄███▄▄▄      
-//  ▀███████████      ███      ▄██   ███  ███        ▀▀███▀▀▀      
-//           ███      ███      ███   ███  ███          ███    █▄   
-//     ▄█    ███      ███      ███   ███  ███▌    ▄    ███    ███  
-//   ▄████████▀      ▄████▀     ▀█████▀   █████▄▄██    ██████████
-
-// some admin styling
-
-function bbc_admin_styling() {
-	// do something
-}
-
-// add admin scripts
-
-function bbc_add_scripts($hook) {
-	// do something
-}
-
-
-//    ▄▄▄▄███▄▄▄▄       ▄████████      ███         ▄████████  
-//  ▄██▀▀▀███▀▀▀██▄    ███    ███  ▀█████████▄    ███    ███  
-//  ███   ███   ███    ███    █▀      ▀███▀▀██    ███    ███  
-//  ███   ███   ███   ▄███▄▄▄          ███   ▀    ███    ███  
-//  ███   ███   ███  ▀▀███▀▀▀          ███      ▀███████████  
-//  ███   ███   ███    ███    █▄       ███        ███    ███  
-//  ███   ███   ███    ███    ███      ███        ███    ███  
-//   ▀█   ███   █▀     ██████████     ▄████▀      ███    █▀   
-
-function bbc_add_metaboxes() {
-	// do something
-}
-
-function bbc_stripe_metabox($post) {
-	// do something
-}
-
-function bbc_save_postdata($post_id) {
-	// do something
-}
-
-
-//     ▄████████     ▄█    █▄      ▄██████▄      ▄████████      ███      
-//    ███    ███    ███    ███    ███    ███    ███    ███  ▀█████████▄  
-//    ███    █▀     ███    ███    ███    ███    ███    ███     ▀███▀▀██  
-//    ███          ▄███▄▄▄▄███▄▄  ███    ███   ▄███▄▄▄▄██▀      ███   ▀  
-//  ▀███████████  ▀▀███▀▀▀▀███▀   ███    ███  ▀▀███▀▀▀▀▀        ███      
-//           ███    ███    ███    ███    ███  ▀███████████      ███      
-//     ▄█    ███    ███    ███    ███    ███    ███    ███      ███      
-//   ▄████████▀     ███    █▀      ▀██████▀     ███    ███     ▄████▀
-
-//   ▄████████   ▄██████▄   ████████▄      ▄████████  
-//  ███    ███  ███    ███  ███   ▀███    ███    ███  
-//  ███    █▀   ███    ███  ███    ███    ███    █▀   
-//  ███         ███    ███  ███    ███   ▄███▄▄▄      
-//  ███         ███    ███  ███    ███  ▀▀███▀▀▀      
-//  ███    █▄   ███    ███  ███    ███    ███    █▄   
-//  ███    ███  ███    ███  ███   ▄███    ███    ███  
-//  ████████▀    ▀██████▀   ████████▀     ██████████  
-
-function bbc_shortcode($atts = [], $content = null, $tag = '') {
-	$a = shortcode_atts([], $atts);
-
-	return null;
-}
-
-// caller function
-
-function basic_barcode($pdf) {
-	echo do_shortcode('[pdf]' . $pdf . '[/pdf]');
-}
 
 //     ▄██████▄    ▄██████▄   
 //    ███    ███  ███    ███  
@@ -447,23 +401,7 @@ function basic_barcode($pdf) {
 //    ███    ███  ███    ███  
 //    ████████▀    ▀██████▀
 
-define('_BPDF', _bbcSettings::get_settings());
-
-// actions
-
-add_action('init', 'bbc_init');
-add_action('admin_head', 'bbc_admin_styling');
-add_action('admin_enqueue_scripts', 'bbc_add_scripts');
-add_action('add_meta_boxes', 'bbc_add_metaboxes');
-add_action('save_post', 'bbc_save_postdata');
-
-// filters
-
-add_filter('parent_file', 'bbc_set_current_menu');
-
-// shortcodes
-
-add_shortcode('pdf', 'bbc_shortcode');
+define('_BBC', _bbcSettings::get_settings());
 
 // boot plugin
 
