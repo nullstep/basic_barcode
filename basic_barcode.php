@@ -3,7 +3,7 @@
 /*
  * Plugin Name: basic_barcode
  * Plugin URI: https://localhost/plugins
- * Description: useful pdf generator
+ * Description: barcode generator
  * Author: nullstep
  * Author URI: https://localhost
  * Version: 1.0.1
