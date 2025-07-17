@@ -124,11 +124,8 @@ class _bbcAPI {
 
 	public function generate(WP_REST_Request $request) {
 		$key = $request->get_param('key');
-		$type = $request->get_param('type') ?? 'QRCODE';
 		$format = $request->get_param('format') ?? 'svg';
 		$value = $request->get_param('value');
-		$width = $request->get_param('width') ?? 256;
-		$height = $request->get_param('height') ?? 256;
 
 		if (_BBC['active'] != 'yes') {
 			return rest_ensure_response(['error' => 'api disabled']);
@@ -148,8 +145,15 @@ class _bbcAPI {
 
 		require_once(_PATH_BASIC_BARCODE . '/lib/barcode.php');
 
-		$barcode = new Barcode();
-		$obj = $barcode->getBarcodeObj($type, $value, $width, $height, 'black', [0, 0, 0, 0])->setBackgroundColor('white');
+		$obj = get_barcode(
+			($request->get_param('type') ?? 'QRCODE'),
+			$value,
+			($request->get_param('width') ?? 256),
+			($request->get_param('height') ?? 256),
+			$request->get_param('colour'),
+			$request->get_param('margin'),
+			$request->get_param('background')
+		);
 
 		switch ($format) {
 			case 'svg': {
@@ -169,6 +173,12 @@ class _bbcAPI {
 		}
 	}
 }
+
+function get_barcode($type, $value, $w, $h, $fg = 'black', $bg = 'white', $margin = 0) {
+	$barcode = new Barcode();
+	return $barcode->getBarcodeObj($type, $value, $w, $h, $fg, [$margin, $margin, $margin, $margin])->setBackgroundColor($bg);
+}
+
 
 //     ▄████████     ▄████████      ███          ███       ▄█   ███▄▄▄▄▄       ▄██████▄      ▄████████  
 //    ███    ███    ███    ███  ▀█████████▄  ▀█████████▄  ███   ███▀▀▀▀██▄    ███    ███    ███    ███  
